@@ -36,3 +36,11 @@ services:
       - ./docker/db/sql:/docker-entrypoint-initdb.d
     ports:
       - 3306:3306
+
+  mailpit:
+    image: axllent/mailpit:v1.8
+    ports:
+        - 1025:1025
+        - 8025:8025
+    depends_on:
+        - app

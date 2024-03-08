@@ -15,7 +15,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Scripts -->
-  <link rel="stylesheet" href="css/color.css">
+  <link rel="stylesheet" href="/css/color.css">
 </head>
 
 <body class="font-sans antialiased background-color">

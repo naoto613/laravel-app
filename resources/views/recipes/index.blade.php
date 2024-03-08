@@ -4,7 +4,7 @@
     {{ Breadcrumbs::render('index') }}
       <div class="mb-4"></div>
   @foreach($recipes as $recipe)
-      <a href="" class="flex flex-col items-center bg-white mb-6 border border-gray-200 rounded-lg shadow md:flex-row md:max-w-xl hover:bg-gray-100">
+      <a href="{{route('recipe.show', ['id' => $recipe['id']])}}" class="flex flex-col items-center bg-white mb-6 border border-gray-200 rounded-lg shadow md:flex-row md:max-w-xl hover:bg-gray-100">
         <img class="object-cover rounded-t-lg h-40 w-40 mrounded-none rounded-l-lg" src="{{$recipe->image}}" alt="{{$recipe->title}}">
         <div class="flex flex-col justify-between p-4 leading-normal">
           <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-800">{{$recipe->title}}</h5>
@@ -30,8 +30,7 @@
           <label class="text-lg text-gray-800">評価</label>
           <div class="ml-4 mb-2">
             <input type="radio" name="rating" value="0" id="rating0"
-              {{ ($filters['rating'] ?? null) == null ? 'checked' : ''}}/>
-              <!-- もしratingのフィルターがあったら、空文字を返す、そうでなければ ’checked'を返す -->
+            {{ (!isset($filters['rating']) || $filters['rating'] == 0) ? 'checked' : '' }}/>
             <label for="rating0">指定しない</label>
           </div>
           <div class="ml-4 mb-2">

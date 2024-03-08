@@ -15,7 +15,7 @@
     <div class="col-span-2 bg-white rounded p-4">
       <h2 class="text-2xl font-bold mb-2">新着レシピ</h2>
       @foreach ($recipes as $recipe)
-        <a href=""
+        <a href="{{route('recipe.show', ['id' => $recipe['id']])}}"
           class="flex flex-col items-center bg-white mb-6 border border-gray-200 rounded-lg shadow md:flex-row md:max-w-xl hover:bg-gray-100">
           <img class="object-cover rounded-t-lg h-40 w-40 mrounded-none rounded-l-lg" src="{{ $recipe->image }}"
             alt="{{ $recipe->title }}">

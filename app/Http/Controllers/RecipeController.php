@@ -2,10 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
+// use Illuminate\Support\Facades\Storage;
 use App\Models\Category;
+use App\Models\Ingredient;
+use App\Http\Requests\RecipeCreateRequest;
 use Illuminate\Http\Request;
 use App\Models\Recipe;
-use Illuminate\Support\Facades\DB;
+use App\Models\Step;
+use Illuminate\Support\Facades\Log;
 
 class RecipeController extends Controller
 {
@@ -34,7 +41,9 @@ class RecipeController extends Controller
     public function index(Request $request)
     {
         $filters = $request->all();
-        $query = Recipe::query()->select('recipes.id', 'recipes.title', 'recipes.description', 'recipes.created_at', 'recipes.image', 'users.name' , DB::raw('AVG(reviews.rating) as rating'))
+        // dd($filters);
+        $query = Recipe::query()->select('recipes.id', 'recipes.title', 'recipes.description', 'recipes.created_at', 'recipes.image', 'users.name'
+        , DB::raw('AVG(reviews.rating) as rating'))
             ->join('users', 'users.id', '=', 'recipes.user_id')
             ->leftJoin('reviews', 'reviews.recipe_id', '=', 'recipes.id')
             ->groupBy('recipes.id')
@@ -59,9 +68,9 @@ class RecipeController extends Controller
             }
         }
         $recipes = $query->paginate(5);
-        // dd($resipes);
-
+        // dd($recipes);
         $categories = Category::all();
+
         return view('recipes.index', compact('recipes', 'categories', 'filters'));
     }
 
@@ -70,15 +79,63 @@ class RecipeController extends Controller
      */
     public function create()
     {
-        //
+        $categories = Category::all();
+
+        return view('recipes.create', compact('categories'));
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(RecipeCreateRequest $request)
     {
-        //
+        $posts = $request->all();
+        $uuid = Str::uuid()->toString();
+        // dd($posts);
+        // $image = $request->file('image');
+        // s3に画像をアップロード
+        // $path = Storage::disk('s3')->putFile('recipe', $image, 'public');
+        // // dd($path);
+        // // s3のURLを取得
+        // $url = Storage::disk('s3')->url($path);
+        $url = 'dummy';
+        try {
+          DB::beginTransaction();
+          Recipe::insert([
+              'id' => $uuid,
+              'title' => $posts['title'],
+              'description' => $posts['description'],
+              'category_id' => $posts['category'],
+              'image' => $url,
+              'user_id' => Auth::id()
+          ]);
+          $ingredients = [];
+          foreach($posts['ingredients'] as $key => $ingredient){
+              $ingredients[$key] = [
+                  'recipe_id' => $uuid,
+                  'name' => $ingredient['name'],
+                  'quantity' => $ingredient['quantity']
+              ];
+          }
+          Ingredient::insert($ingredients);
+          $steps = [];
+          foreach($posts['steps'] as $key => $step){
+              $steps[$key] = [
+                  'recipe_id' => $uuid,
+                  'step_number' => $key + 1,
+                  'description' => $step
+              ];
+          }
+          STEP::insert($steps);
+          DB::commit();
+      } catch (\Throwable $th) {
+          DB::rollBack();
+          Log::debug(print_r($th->getMessage(), true));
+          throw $th;
+      }
+      // dd($steps);
+      return redirect()->route('recipe.show', ['id' => $uuid]);
+
     }
 
     /**
@@ -86,20 +143,19 @@ class RecipeController extends Controller
      */
     public function show(string $id)
     {
-      // こんな取り方しなくてもbladeではrelationが全部取れる
-      // $recipe = Recipe::with(['ingredients'])
-      //     ->where('recipes.id', $id)
-      //     ->get();
-      // dd($recipe);
-      // $recipe = $recipe[0];
-      // $recipe_recode = Recipe::find($id);
-      // $recipe_recode->increment('views');
+        $recipe = Recipe::with(['ingredients', 'steps', 'reviews.user', 'user'])
+            ->where('recipes.id', $id)
+            ->first();
+        $recipe_recode = Recipe::find($id);
+        $recipe_recode->increment('views');
+        // $ingredients = Ingredient::where('recipe_id', $recipe['id'])->get();
+        // $steps = Step::where('recipe_id', $recipe['id'])->get();
+        // リレーションで材料とステップを取得
+        //    dd($recipe);
 
-      $recipe = Recipe::find($id);
-      $recipe->increment('views');
-  
-      return view('recipes.show', compact('recipe'));
-  }
+        // Flash::success('レシピを投稿しました！');
+        return view('recipes.show', compact('recipe'));
+    }
 
     /**
      * Show the form for editing the specified resource.

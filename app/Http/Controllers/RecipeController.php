@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use App\Models\Recipe;
 use App\Models\Step;
 use Illuminate\Support\Facades\Log;
+use App\Http\Requests\RecipeUpdateRequest;
 
 class RecipeController extends Controller
 {
@@ -143,18 +144,33 @@ class RecipeController extends Controller
      */
     public function show(string $id)
     {
-        $recipe = Recipe::with(['ingredients', 'steps', 'reviews.user', 'user'])
-            ->where('recipes.id', $id)
-            ->first();
-        $recipe_recode = Recipe::find($id);
-        $recipe_recode->increment('views');
-        // $ingredients = Ingredient::where('recipe_id', $recipe['id'])->get();
-        // $steps = Step::where('recipe_id', $recipe['id'])->get();
-        // リレーションで材料とステップを取得
-        //    dd($recipe);
+      $recipe = Recipe::with(['ingredients', 'steps', 'reviews.user', 'user'])
+          ->where('recipes.id', $id)
+          ->first();
+      $recipe_recode = Recipe::find($id);
+      $recipe_recode->increment('views');
 
-        // Flash::success('レシピを投稿しました！');
-        return view('recipes.show', compact('recipe'));
+      // レシピの投稿者とログインユーザーが同じかどうか
+      $is_my_recipe = false;
+      if( Auth::check() && (Auth::id() === $recipe['user_id']) ) {
+          $is_my_recipe = true;
+      }
+      $is_reviewed = false;
+      if( Auth::check() ) {
+          $is_reviewed = $recipe->reviews->contains('user_id', Auth::id());
+          // foreach($recipe['reviews'] as $review) {
+          //     if( $review['user_id'] === Auth::id() ) {
+          //         $is_reviewed = true;
+          //     }
+          // }
+      }
+
+      // $ingredients = Ingredient::where('recipe_id', $recipe['id'])->get();
+      // $steps = Step::where('recipe_id', $recipe['id'])->get();
+      // リレーションで材料とステップを取得
+      //    dd($recipe);
+
+      return view('recipes.show', compact('recipe', 'is_my_recipe', 'is_reviewed'));
     }
 
     /**
@@ -162,15 +178,73 @@ class RecipeController extends Controller
      */
     public function edit(string $id)
     {
-        //
+      $recipe = Recipe::with(['ingredients', 'steps', 'reviews.user', 'user'])
+        ->where('recipes.id', $id)
+        ->first();
+
+      if (!Auth::check() || (Auth::id()) !== $recipe['user_id']) {
+        abort(403, '権限がありません');
+      }
+
+      $categories = Category::all();
+
+      return view('recipes.edit', compact('recipe', 'categories'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(RecipeUpdateRequest $request, string $id)
     {
-        //
+      $posts = $request->all();
+        // dd($posts);
+        // 画像の分岐
+        $update_array = [
+            'title' => $posts['title'],
+            'description' => $posts['description'],
+            'category_id' => $posts['category_id']
+        ];
+        if( $request->hasFile('image') ) {
+            $image = $request->file('image');
+            // // s3に画像をアップロード
+            // $path = Storage::disk('s3')->putFile('recipe', $image, 'public');
+            // // s3のURLを取得
+            // $url = Storage::disk('s3')->url($path);
+            // DBにはURLを保存
+            $update_array['image'] = 'dummy';
+        }
+        try {
+            DB::beginTransaction();
+            Recipe::where('id', $id)->update($update_array);
+            Ingredient::where('recipe_id', $id)->delete();
+            STEP::where('recipe_id', $id)->delete();
+            $ingredients = [];
+            foreach($posts['ingredients'] as $key => $ingredient){
+                $ingredients[$key] = [
+                    'recipe_id' => $id,
+                    'name' => $ingredient['name'],
+                    'quantity' => $ingredient['quantity']
+                ];
+            }
+            Ingredient::insert($ingredients);
+            $steps = [];
+            foreach($posts['steps'] as $key => $step){
+                $steps[$key] = [
+                    'recipe_id' => $id,
+                    'step_number' => $key + 1,
+                    'description' => $step
+                ];
+            }
+            STEP::insert($steps);
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::debug(print_r($th->getMessage(), true));
+            throw $th;
+        }
+        flash()->success('レシピを更新しました！');
+
+        return redirect()->route('recipe.show', ['id' => $id]);
     }
 
     /**
@@ -178,6 +252,10 @@ class RecipeController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+      Recipe::where('id', $id)->delete();
+      // Recipe::where('id', $id)->update(['deleted_at' => now()]);
+      flash()->warning('レシピを削除しました！');
+
+      return redirect()->route('home');
     }
 }
